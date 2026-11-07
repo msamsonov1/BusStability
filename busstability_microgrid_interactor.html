@@ -1,0 +1,1652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BusStability - Spacecraft DC Microgrid Impedance Interactor</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- MathJax v3 Configuration -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #05070d;
+      color: #e2e8f0;
+      overflow-x: hidden;
+    }
+
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .formula-box {
+      background-color: #030712;
+      border: 1px solid #1f2937;
+      border-radius: 0.5rem;
+      padding: 0.75rem 1rem;
+      color: #67e8f9;
+      overflow-x: auto;
+      margin: 0.75rem 0;
+    }
+
+    /* Custom range slider styling */
+    input[type=range] {
+      -webkit-appearance: none;
+      background: #1e293b;
+      height: 6px;
+      border-radius: 3px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 18px;
+      width: 18px;
+      border-radius: 50%;
+      background: #06b6d4;
+      cursor: pointer;
+      box-shadow: 0 0 10px rgba(6, 182, 212, 0.7);
+    }
+
+    /* Subtle glow utilities */
+    .glow-cyan {
+      box-shadow: 0 0 20px rgba(6, 182, 212, 0.2);
+    }
+    .glow-rose {
+      box-shadow: 0 0 20px rgba(244, 63, 94, 0.3);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#05070d]">
+
+  <!-- Top Navigation Header -->
+  <header class="border-b border-gray-800 bg-gray-950/80 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="h-9 w-9 rounded-lg bg-gradient-to-br from-cyan-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-lg shadow-cyan-500/20">
+          <i data-lucide="zap" class="w-5 h-5 text-cyan-200"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="font-bold text-lg tracking-tight text-white">BusStability</span>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800 mono font-semibold">NASA PMAD v4.2</span>
+          </div>
+          <p class="text-xs text-gray-400 hidden sm:block">Autonomous DC Microgrid Impedance Interactor & Middlebrook Stabilizer</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex space-x-1 sm:space-x-2 bg-gray-900/80 p-1 rounded-xl border border-gray-800">
+        <button id="tabBtnSim" onclick="switchTab('sim')" class="px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium rounded-lg transition-all duration-150 flex items-center space-x-1.5 bg-cyan-500 text-white shadow-md shadow-cyan-500/25">
+          <i data-lucide="activity" class="w-4 h-4"></i>
+          <span>Live Telemetry</span>
+        </button>
+        <button id="tabBtnPhysics" onclick="switchTab('physics')" class="px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium rounded-lg text-gray-400 hover:text-white transition-all duration-150 flex items-center space-x-1.5">
+          <i data-lucide="binary" class="w-4 h-4"></i>
+          <span>Impedance Physics</span>
+        </button>
+        <button id="tabBtnProposal" onclick="switchTab('proposal')" class="px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium rounded-lg text-gray-400 hover:text-white transition-all duration-150 flex items-center space-x-1.5">
+          <i data-lucide="rocket" class="w-4 h-4"></i>
+          <span>NASA SBIR/STTR</span>
+        </button>
+        <button id="tabBtnARR" onclick="switchTab('arr')" class="px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium rounded-lg text-gray-400 hover:text-white transition-all duration-150 flex items-center space-x-1.5">
+          <i data-lucide="trending-up" class="w-4 h-4"></i>
+          <span>Commercial ARR</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+    <!-- ========================================== -->
+    <!-- TAB 1: LIVE SIMULATION & TELEMETRY HUD      -->
+    <!-- ========================================== -->
+    <div id="viewSim" class="space-y-6">
+      
+      <!-- Top Alert & Realtime Status HUD -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-gray-900/50 border border-gray-800 p-4 rounded-xl flex items-center justify-between">
+          <div>
+            <span class="text-xs text-gray-400 uppercase tracking-wider block">Bus Voltage ($V_{bus}$)</span>
+            <span id="telemetryVbus" class="text-2xl font-bold mono text-cyan-400">120.0 V</span>
+            <span class="text-[11px] text-gray-500 block">Nominal 120V Regulated</span>
+          </div>
+          <div class="p-3 bg-cyan-950/40 border border-cyan-800/40 rounded-lg text-cyan-400">
+            <i data-lucide="gauge" class="w-6 h-6"></i>
+          </div>
+        </div>
+
+        <div class="bg-gray-900/50 border border-gray-800 p-4 rounded-xl flex items-center justify-between">
+          <div>
+            <span class="text-xs text-gray-400 uppercase tracking-wider block">Total CPL Power ($P_{cpl}$)</span>
+            <span id="telemetryPower" class="text-2xl font-bold mono text-amber-400">3,600 W</span>
+            <span id="telemetryEffZ" class="text-[11px] text-gray-500 block">Incremental $R_{in} = -4.00\,\Omega$</span>
+          </div>
+          <div class="p-3 bg-amber-950/40 border border-amber-800/40 rounded-lg text-amber-400">
+            <i data-lucide="cpu" class="w-6 h-6"></i>
+          </div>
+        </div>
+
+        <div class="bg-gray-900/50 border border-gray-800 p-4 rounded-xl flex items-center justify-between">
+          <div>
+            <span class="text-xs text-gray-400 uppercase tracking-wider block">Middlebrook Margin</span>
+            <span id="telemetryMargin" class="text-2xl font-bold mono text-emerald-400">+11.4 dB</span>
+            <span id="telemetryOverlap" class="text-[11px] text-gray-500 block">Resonance: $f_0 \approx 420\text{ Hz}$</span>
+          </div>
+          <div class="p-3 bg-emerald-950/40 border border-emerald-800/40 rounded-lg text-emerald-400" id="marginIconBox">
+            <i data-lucide="shield-check" class="w-6 h-6" id="marginIcon"></i>
+          </div>
+        </div>
+
+        <div class="bg-gray-900/50 border border-gray-800 p-4 rounded-xl flex items-center justify-between">
+          <div>
+            <span class="text-xs text-gray-400 uppercase tracking-wider block">Microgrid Stability State</span>
+            <span id="telemetryStatus" class="text-sm font-semibold mono px-2.5 py-1 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800 inline-block mt-1">
+              STABLE (NOMINAL)
+            </span>
+            <span id="telemetryObserver" class="text-[11px] text-gray-400 block mt-1">Autonomous Damping: Active</span>
+          </div>
+          <div class="p-3 bg-gray-800/40 border border-gray-700/40 rounded-lg text-gray-300">
+            <i data-lucide="radio" class="w-6 h-6"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Interactive Row: Visual Bus Microgrid & Bode Phase Space -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left Column: Spacecraft Physical Microgrid Simulation Canvas -->
+        <div class="lg:col-span-5 bg-gray-900/40 border border-gray-800 rounded-2xl p-5 flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="network" class="w-4 h-4 text-cyan-400"></i>
+              <h2 class="text-sm font-semibold uppercase tracking-wider text-gray-300">Distributed Power Bus Architecture</h2>
+            </div>
+            <span class="text-xs mono text-cyan-400 flex items-center space-x-1">
+              <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+              <span>CHIRP INJECTION ACTIVE (10Hz-100kHz)</span>
+            </span>
+          </div>
+          <p class="text-xs text-gray-400 mb-3">
+            Real-time energy flow: Upstream Solar Array Regulator (SAR) & Battery Discharger $\to$ LC Output Filter $\to$ Regulated 120V Bus $\to$ Constant-Power Loads (Electric Propulsion, Cryocoolers, Avionics).
+          </p>
+
+          <!-- Canvas Container -->
+          <div class="relative w-full rounded-xl overflow-hidden border border-gray-800 bg-[#03050a] aspect-[4/3] flex items-center justify-center">
+            <canvas id="microgridCanvas" class="w-full h-full block"></canvas>
+            <div id="oscillationWarning" class="absolute bottom-3 left-3 right-3 bg-rose-950/90 border border-rose-600/80 p-2.5 rounded-lg flex items-center space-x-2 hidden animate-pulse">
+              <i data-lucide="alert-triangle" class="w-5 h-5 text-rose-400 shrink-0"></i>
+              <span class="text-xs text-rose-200 font-medium leading-tight">CRITICAL VIOLATION: $\|Z_{source}(f)\| \ge \|Z_{load}(f)\|$. Limit-cycle oscillation expanding! Bus voltage collapse imminent.</span>
+            </div>
+          </div>
+
+          <!-- Quick Controls Under Canvas -->
+          <div class="mt-4 pt-3 border-t border-gray-800/80 flex items-center justify-between text-xs">
+            <div class="flex items-center space-x-2 text-gray-400">
+              <span class="w-3 h-3 rounded-full bg-cyan-500 inline-block"></span>
+              <span>Source Output ($Z_S$)</span>
+              <span class="w-3 h-3 rounded-full bg-amber-500 inline-block ml-2"></span>
+              <span>Load Input ($Z_L$)</span>
+            </div>
+            <button onclick="injectChirpPulse()" class="px-2.5 py-1 rounded bg-gray-800 hover:bg-gray-700 text-cyan-300 mono text-[11px] border border-gray-700 flex items-center space-x-1 transition">
+              <i data-lucide="waveform" class="w-3 h-3"></i>
+              <span>Trigger Chirp Ping</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Right Column: Primary Diagnostic Chart (f vs Z Bode Impedance Space) -->
+        <div class="lg:col-span-7 bg-gray-900/40 border border-gray-800 rounded-2xl p-5 flex flex-col justify-between">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <div>
+              <div class="flex items-center space-x-2">
+                <i data-lucide="line-chart" class="w-4 h-4 text-cyan-400"></i>
+                <h2 class="text-sm font-semibold uppercase tracking-wider text-gray-200">Middlebrook Impedance Bode Space</h2>
+              </div>
+              <p class="text-xs text-gray-400">Frequency ($f$ in Hz) vs Impedance Magnitude ($\|Z\|$ in $\text{dB}\Omega$ / $\Omega$)</p>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="text-xs px-2 py-0.5 rounded bg-gray-800 border border-gray-700 text-gray-300 mono">
+                Criterion: $\|Z_{source}(f)\| \ll \|Z_{load}(f)\|$
+              </span>
+            </div>
+          </div>
+
+          <!-- Phase-Space Chart Container -->
+          <div class="relative w-full h-[290px] bg-[#03050a] rounded-xl p-2 border border-gray-800/80">
+            <canvas id="bodeChart"></canvas>
+          </div>
+
+          <div class="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
+            <div class="p-2 rounded-lg bg-gray-950/60 border border-gray-800">
+              <span class="text-gray-500 block text-[10px] uppercase">Peak Source $\|Z_S\|$</span>
+              <span id="valPeakZs" class="mono font-semibold text-cyan-400">1.82 $\Omega$ (5.2 dB$\Omega$)</span>
+            </div>
+            <div class="p-2 rounded-lg bg-gray-950/60 border border-gray-800">
+              <span class="text-gray-500 block text-[10px] uppercase">Min Load $\|Z_L\|$</span>
+              <span id="valMinZl" class="mono font-semibold text-amber-400">4.00 $\Omega$ (12.0 dB$\Omega$)</span>
+            </div>
+            <div class="p-2 rounded-lg bg-gray-950/60 border border-gray-800">
+              <span class="text-gray-500 block text-[10px] uppercase">Impedance Ratio $T_m$</span>
+              <span id="valTm" class="mono font-semibold text-emerald-400">0.455 (STABLE)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Secondary Telemetry Plots (Time-Domain Bus Voltage & Active Damping Injected Current) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Telemetry 1: Bus Transient Voltage Ripple -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-4">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="waves" class="w-4 h-4 text-cyan-400"></i>
+              <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-300">Bus Voltage Dynamic Transient $V_{bus}(t)$</h3>
+            </div>
+            <span class="text-xs mono text-gray-400" id="vRippleLabel">Ripple: &plusmn;0.35 V</span>
+          </div>
+          <div class="h-36 bg-[#03050a] rounded-xl p-2 border border-gray-800/80">
+            <canvas id="vbusTimeChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Telemetry 2: Adaptive Active Damping Control Action -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-4">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="sliders" class="w-4 h-4 text-indigo-400"></i>
+              <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-300">Active Virtual Damping Gain $K_{damp}(f)$ & Duty Mod</h3>
+            </div>
+            <span class="text-xs mono text-indigo-400" id="dampStateLabel">Virtual Conductance: 0.42 S</span>
+          </div>
+          <div class="h-36 bg-[#03050a] rounded-xl p-2 border border-gray-800/80">
+            <canvas id="dampingTimeChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interactive Controls & Closed-Loop Fault Injection Panel -->
+      <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-6">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-800">
+          <div>
+            <h3 class="text-base font-semibold text-white flex items-center space-x-2">
+              <i data-lucide="terminal" class="w-5 h-5 text-cyan-400"></i>
+              <span>Autonomous Closed-Loop PMAD Inversion & Disturbance Controls</span>
+            </h3>
+            <p class="text-xs text-gray-400 mt-0.5">
+              Interact with satellite bus load steps, line inductances, and observe autonomous PMAD active damping counteraction.
+            </p>
+          </div>
+
+          <!-- Mode / Recovery Action -->
+          <div class="flex items-center space-x-3">
+            <label class="flex items-center space-x-2 cursor-pointer bg-gray-950 px-3 py-1.5 rounded-lg border border-gray-800">
+              <input type="checkbox" id="autoDampToggle" checked class="w-4 h-4 text-cyan-500 rounded bg-gray-900 border-gray-700 focus:ring-cyan-500">
+              <span class="text-xs font-medium text-gray-300">Autonomous Active Damping Loop</span>
+            </label>
+            <button onclick="resetToNominal()" class="px-3 py-1.5 text-xs font-medium bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg transition border border-gray-700">
+              Reset Baseline
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 pt-5">
+          <!-- Slider 1: Total CPL Power Demand -->
+          <div class="space-y-2">
+            <div class="flex justify-between text-xs">
+              <span class="text-gray-400">CPL Power Demand ($P_{CPL}$)</span>
+              <span id="sliderValPower" class="mono text-amber-400 font-semibold">3.60 kW</span>
+            </div>
+            <input type="range" id="sliderPower" min="1000" max="8000" step="100" value="3600" class="w-full">
+            <div class="flex justify-between text-[10px] text-gray-500">
+              <span>1.0 kW (High $R_{in}$)</span>
+              <span>8.0 kW (Destabilizing)</span>
+            </div>
+          </div>
+
+          <!-- Slider 2: Distribution Cable Inductance -->
+          <div class="space-y-2">
+            <div class="flex justify-between text-xs">
+              <span class="text-gray-400">Harness Inductance ($L_{bus}$)</span>
+              <span id="sliderValInductance" class="mono text-cyan-400 font-semibold">35 &mu;H</span>
+            </div>
+            <input type="range" id="sliderInductance" min="5" max="120" step="1" value="35" class="w-full">
+            <div class="flex justify-between text-[10px] text-gray-500">
+              <span>5 &mu;H (Short Stiff Bus)</span>
+              <span>120 &mu;H (Long Deployable Mast)</span>
+            </div>
+          </div>
+
+          <!-- Slider 3: Output Filter Capacitance / ESR -->
+          <div class="space-y-2">
+            <div class="flex justify-between text-xs">
+              <span class="text-gray-400">Bus Capacitance ($C_{bus}$)</span>
+              <span id="sliderValCap" class="mono text-indigo-400 font-semibold">180 &mu;F</span>
+            </div>
+            <input type="range" id="sliderCap" min="30" max="400" step="5" value="180" class="w-full">
+            <div class="flex justify-between text-[10px] text-gray-500">
+              <span>30 &mu;F (Degraded Caps)</span>
+              <span>400 &mu;F (Heavy Filter)</span>
+            </div>
+          </div>
+
+          <!-- Slider 4: Active Damping Gain (Virtual Resistor) -->
+          <div class="space-y-2">
+            <div class="flex justify-between text-xs">
+              <span class="text-gray-400">Active Damping ($R_v$ / $K_d$)</span>
+              <span id="sliderValDamp" class="mono text-emerald-400 font-semibold">0.65 &Omega; Eq</span>
+            </div>
+            <input type="range" id="sliderDamp" min="0" max="2.0" step="0.05" value="0.65" class="w-full">
+            <div class="flex justify-between text-[10px] text-gray-500">
+              <span>0.0 (Uncompensated)</span>
+              <span>2.0 (Overdamped)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Preset Scenarios -->
+        <div class="mt-6 pt-4 border-t border-gray-800/80 flex flex-wrap items-center gap-2">
+          <span class="text-xs text-gray-400 uppercase tracking-wider mr-2">Flight Scenarios:</span>
+          <button onclick="loadScenario('cruise')" class="px-3 py-1 text-xs rounded-md bg-gray-800/90 hover:bg-gray-700 text-gray-300 border border-gray-700 transition">
+            1. Solar Cruise (Nominal)
+          </button>
+          <button onclick="loadScenario('thruster')" class="px-3 py-1 text-xs rounded-md bg-amber-950/40 hover:bg-amber-900/60 text-amber-300 border border-amber-800/60 transition">
+            2. Hall Thruster 6kW Fire (Near Middlebrook Peak)
+          </button>
+          <button onclick="loadScenario('resonance')" class="px-3 py-1 text-xs rounded-md bg-rose-950/60 hover:bg-rose-900/70 text-rose-300 border border-rose-800 transition">
+            3. Induced Impedance Intersection (Instability Trap)
+          </button>
+          <button onclick="loadScenario('cryoPulse')" class="px-3 py-1 text-xs rounded-md bg-cyan-950/50 hover:bg-cyan-900/60 text-cyan-300 border border-cyan-800/60 transition">
+            4. Cryocooler Harmonic Step + Auto Damping
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 2: CORE PHYSICS & MATHEMATICAL MODEL   -->
+    <!-- ========================================== -->
+    <div id="viewPhysics" class="space-y-6 hidden">
+      
+      <!-- Physics Banner -->
+      <div class="bg-gradient-to-r from-cyan-950/40 via-indigo-950/20 to-transparent border border-cyan-800/40 rounded-2xl p-6">
+        <h2 class="text-xl font-bold text-white flex items-center space-x-2">
+          <i data-lucide="atom" class="w-6 h-6 text-cyan-400"></i>
+          <span>Autonomous Microgrid Impedance Physics & Dynamic Inversion</span>
+        </h2>
+        <p class="text-sm text-gray-300 mt-2 leading-relaxed">
+          In space exploration microgrids, tightly regulated point-of-load DC/DC converters feeding modern avionics, RF transmitters, and Hall-effect thrusters behave as <strong>Constant-Power Loads (CPL)</strong>. Because dynamic current decreases when voltage increases to maintain constant power, their small-signal dynamic input impedance is negative, instigating limit-cycle oscillations and destructive blackout cascades.
+        </p>
+      </div>
+
+      <!-- 4 Core Physics Formula Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Card 1: Constant-Power Load Negative Incremental Impedance -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-6 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center space-x-2 text-amber-400 mb-2">
+              <i data-lucide="zap-off" class="w-5 h-5"></i>
+              <h3 class="font-semibold text-base text-gray-200">1. Negative Dynamic Resistance Formulation</h3>
+            </div>
+            <p class="text-xs text-gray-400 leading-relaxed">
+              Consider a regulated converter consuming constant load power $P$. While the DC static resistance $R_{DC} = V_0 / I_0 > 0$ is positive, taking the small-signal differential Taylor expansion yields a negative incremental input resistance $r_{in}$:
+            </p>
+
+            <div class="formula-box">
+              $$P(t) = v(t) \cdot i(t) = \text{const} \implies i(t) = \frac{P}{v(t)}$$
+            </div>
+            <div class="formula-box">
+              $$r_{in} = \left( \left. \frac{di}{dv} \right|_{V_0} \right)^{-1} = \left( -\frac{P}{V_0^2} \right)^{-1} = -\frac{V_0^2}{P} = -R_{DC}$$
+            </div>
+            <p class="text-xs text-gray-400 mt-2">
+              For a 120V bus delivering 3.6 kW to electric thruster inverters, $r_{in} = -(120)^2 / 3600 = -4.00\,\Omega$. When connected to input EMI filter stages, this introduces a negative damping term into the characteristic equation:
+            </p>
+            <div class="formula-box">
+              $$s^2 + s \left( \frac{R_L}{L} + \frac{1}{r_{in} C} \right) + \frac{1}{LC}\left(1 + \frac{R_L}{r_{in}}\right) = 0$$
+            </div>
+          </div>
+          <div class="text-[11px] text-gray-500 border-t border-gray-800/80 pt-2 mt-2">
+            If $r_{in} < 0$ and $|r_{in}| < L / (R_L C)$, poles migrate to the right-half plane ($s > 0$), instigating self-sustaining oscillations.
+          </div>
+        </div>
+
+        <!-- Card 2: Middlebrook Criterion & Minor Loop Ratio -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-6 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center space-x-2 text-cyan-400 mb-2">
+              <i data-lucide="git-branch" class="w-5 h-5"></i>
+              <h3 class="font-semibold text-base text-gray-200">2. Middlebrook Impedance Stability Criterion</h3>
+            </div>
+            <p class="text-xs text-gray-400 leading-relaxed">
+              Partitioning the distributed spacecraft bus into a Thévenin source output impedance $Z_S(s)$ and a load input impedance $Z_L(s)$, the loaded bus transfer function $G_{bus}(s)$ relates to the unloaded transfer function $G_{src}(s)$ via the <strong>minor loop gain</strong> $T_m(s)$:
+            </p>
+
+            <div class="formula-box">
+              $$T_m(s) = \frac{Z_{source}(s)}{Z_{load}(s)}$$
+            </div>
+            <div class="formula-box">
+              $$G_{bus}(s) = G_{src}(s) \cdot \frac{1}{1 + \frac{Z_{source}(s)}{Z_{load}(s)}} = G_{src}(s) \cdot \frac{1}{1 + T_m(s)}$$
+            </div>
+            <p class="text-xs text-gray-400 mt-2">
+              According to the Nyquist/Middlebrook criteria, stability and acceptable gain/phase margins are guaranteed for arbitrary load dynamic changes if and only if the locus of $T_m(j\omega)$ does not encircle $(-1, 0)$, satisfied conservative bound:
+            </p>
+            <div class="formula-box">
+              $$\|Z_{source}(j\omega)\| \ll \|Z_{load}(j\omega)\| \quad \forall \; \omega \in [0, \infty)$$
+            </div>
+          </div>
+          <div class="text-[11px] text-gray-500 border-t border-gray-800/80 pt-2 mt-2">
+            If peak source output filter impedance $\|Z_S(f_0)\|$ overlaps or approaches $\|Z_L(f_0)\|$, the system stability margin vanishes to 0 dB.
+          </div>
+        </div>
+
+        <!-- Card 3: Wideband Micro-Chirp Online Observer -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-6 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center space-x-2 text-indigo-400 mb-2">
+              <i data-lucide="radio" class="w-5 h-5"></i>
+              <h3 class="font-semibold text-base text-gray-200">3. Non-Intrusive Online Micro-Chirp Observer</h3>
+            </div>
+            <p class="text-xs text-gray-400 leading-relaxed">
+              Passive hardware impedance sweeps are impossible during operational spaceflights. The PMAD firmware injects orthogonal pseudo-random wideband linear chirp currents $\tilde{i}_{inj}(t)$ at infinitesimal amplitudes ($<0.1\%$ bus ripple, unnoticeable to science instruments):
+            </p>
+
+            <div class="formula-box">
+              $$\tilde{i}_{inj}(t) = A_c \sin\left(2\pi \left( f_{start} + \frac{f_{stop}-f_{start}}{2 T_{sweep}} t \right) t \right)$$
+            </div>
+            <p class="text-xs text-gray-400 mt-2">
+              High-speed DSPs compute the cross-spectral density between the synchronous bus voltage perturbation $\tilde{v}_{bus}$ and load current perturbation $\tilde{i}_{L}$ via short-time fast Fourier transform (ST-FFT):
+            </p>
+            <div class="formula-box">
+              $$Z_{load}(j\omega) = \frac{\mathcal{F}\{\tilde{v}_{bus}(t)\}}{\mathcal{F}\{\tilde{i}_{load}(t)\}} = \frac{S_{v i_{L}}(\omega)}{S_{i_{L} i_{L}}(\omega)}, \quad Z_{source}(j\omega) = -\frac{\mathcal{F}\{\tilde{v}_{bus}(t)\}}{\mathcal{F}\{\tilde{i}_{src}(t)\}}$$
+            </div>
+          </div>
+          <div class="text-[11px] text-gray-500 border-t border-gray-800/80 pt-2 mt-2">
+            Spectral updates occur every 25 milliseconds, tracking real-time degradation of electrolytic/ceramic capacitors over space radiation life.
+          </div>
+        </div>
+
+        <!-- Card 4: Active Virtual Resistor Damping -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-6 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center space-x-2 text-emerald-400 mb-2">
+              <i data-lucide="sparkles" class="w-5 h-5"></i>
+              <h3 class="font-semibold text-base text-gray-200">4. Autonomous Active Damping & Loop Inversion</h3>
+            </div>
+            <p class="text-xs text-gray-400 leading-relaxed">
+              Instead of flying heavy, bulky physical passive RC damping networks that dissipate heat in vacuum, the software modifies the upstream Solar Array Regulator / Battery Discharger pulse-width modulation (PWM) control law with a <strong>virtual conductance</strong> $G_{virt}(s)$:
+            </p>
+
+            <div class="formula-box">
+              $$d_{PWM}(t) = d_{0}(t) - K_{damp} \cdot \mathcal{H}_{BP}(s) \cdot \tilde{v}_{bus}(t)$$
+            </div>
+            <div class="formula-box">
+              $$Z_{source,damped}(s) = \frac{Z_{source}(s)}{1 + G_{virt}(s) \cdot Z_{source}(s)}$$
+            </div>
+            <p class="text-xs text-gray-400 mt-2">
+              By adaptively tuning the high-pass/band-pass filter $\mathcal{H}_{BP}(s)$ at the detected resonance frequency $f_0$, the peak impedance $\|Z_{source}(f_0)\|$ is suppressed by $>14\text{ dB}$, eliminating the negative real part of the dynamic admittance without introducing DC steady-state power dissipation.
+            </p>
+          </div>
+          <div class="text-[11px] text-gray-500 border-t border-gray-800/80 pt-2 mt-2">
+            Zero added mass penalty ($0.00\text{ kg}$). Firmware-defined loop shaping operates autonomously on radiation-hardened microcontrollers (GR740 / RAD750).
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 3: NASA SBIR/STTR PROPOSAL & HARDWARE  -->
+    <!-- ========================================== -->
+    <div id="viewProposal" class="space-y-6 hidden">
+      
+      <!-- Proposal Header Banner -->
+      <div class="bg-gray-900/60 border border-cyan-800/50 rounded-2xl p-6 relative overflow-hidden">
+        <div class="absolute -right-12 -top-12 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-700 mono">
+              NASA SBIR/STTR 2026 Phase I Solicitation
+            </span>
+            <h2 class="text-xl sm:text-2xl font-bold text-white mt-2">
+              Topic TX03.02: Autonomous Spacecraft Power Management & Distribution (PMAD)
+            </h2>
+            <p class="text-xs sm:text-sm text-gray-300 mt-1 max-w-3xl">
+              Project Title: <strong>BusStability</strong> — Non-Intrusive Impedance Interactor & Dynamic Loop Shaping for Deep-Space DC Microgrids with Extreme Constant-Power Loads.
+            </p>
+          </div>
+          <div class="text-left md:text-right shrink-0">
+            <span class="text-xs text-gray-400 block">Total Phase I Allocation</span>
+            <span class="text-2xl font-bold mono text-cyan-400">$225,000</span>
+            <span class="text-xs text-emerald-400 block font-medium">6 Months Duration (TRL 3 &rarr; TRL 5)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- University STTR Partner & Budget Allocation -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 md:col-span-2">
+          <div class="flex items-center space-x-3 mb-3">
+            <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+              <i data-lucide="graduation-cap" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h3 class="text-sm font-semibold text-white">Research Institution Partner (STTR 30.0% Subcontract)</h3>
+              <p class="text-xs text-gray-400">University of Central Florida (UCF) — CATER Power Electronics Laboratory</p>
+            </div>
+          </div>
+          <p class="text-xs text-gray-300 leading-relaxed mb-4">
+            Under this STTR partnership, UCF CATER provides access to the 120V/300V high-power spacecraft microgrid testbed, high-bandwidth GaN-based hardware-in-the-loop (HIL) emulators, and radiation-tolerant FPGA test benches. UCF Principal Investigators specialize in small-signal perturbation techniques and stability under non-linear Pulsed-Power Plasma Loads.
+          </p>
+          <div class="grid grid-cols-3 gap-2 text-center text-xs">
+            <div class="p-2.5 rounded-lg bg-gray-950 border border-gray-800">
+              <span class="text-gray-500 block text-[10px]">UCF Allocation</span>
+              <span class="font-bold mono text-amber-400">$67,500</span>
+              <span class="text-[10px] text-gray-500">Exact 30.0% Minimum</span>
+            </div>
+            <div class="p-2.5 rounded-lg bg-gray-950 border border-gray-800">
+              <span class="text-gray-500 block text-[10px]">Prime Lead (RFWave)</span>
+              <span class="font-bold mono text-cyan-400">$157,500</span>
+              <span class="text-[10px] text-gray-500">70.0% Software Engine</span>
+            </div>
+            <div class="p-2.5 rounded-lg bg-gray-950 border border-gray-800">
+              <span class="text-gray-500 block text-[10px]">Facilities Used</span>
+              <span class="font-bold mono text-emerald-400">CATER HIL Rig</span>
+              <span class="text-[10px] text-gray-500">Vacuum / Thermal Dyn</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <h3 class="text-xs font-semibold text-gray-300 uppercase tracking-wider mb-2 flex items-center space-x-2">
+              <i data-lucide="target" class="w-4 h-4 text-cyan-400"></i>
+              <span>Target Missions</span>
+            </h3>
+            <ul class="text-xs space-y-2 text-gray-300">
+              <li class="flex items-center space-x-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                <span><strong>Artemis Gateway:</strong> PPE 60kW Solar Electric Propulsion Bus.</span>
+              </li>
+              <li class="flex items-center space-x-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                <span><strong>Mars Sample Return:</strong> Deep-space 120V regulated transit bus.</span>
+              </li>
+              <li class="flex items-center space-x-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                <span><strong>CLPS Lunar Landers:</strong> Cryogenic propellant boil-off chiller loads.</span>
+              </li>
+              <li class="flex items-center space-x-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                <span><strong>Commercial LEO Stations:</strong> Multichannel orbital microgrids.</span>
+              </li>
+            </ul>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800 text-[11px] text-gray-500">
+            Compliant with NASA-STD-4003 (Electrical Power System Specification for Spacecraft).
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 Milestones Work Breakdown (Months 1 - 6) -->
+      <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-6">
+        <h3 class="text-sm font-semibold text-white uppercase tracking-wider mb-4 flex items-center space-x-2">
+          <i data-lucide="calendar" class="w-4 h-4 text-cyan-400"></i>
+          <span>Phase I Work Breakdown Schedule (Months 1–6)</span>
+        </h3>
+        
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <!-- Milestone 1 -->
+          <div class="bg-gray-950 p-4 rounded-xl border border-gray-800/80 relative">
+            <span class="text-xs mono font-bold text-cyan-400">M1: Months 1–2</span>
+            <h4 class="text-sm font-medium text-gray-200 mt-1">Non-Linear Microgrid Modeling</h4>
+            <p class="text-xs text-gray-400 mt-2">
+              Derive analytical small-signal Thévenin models for 120V Gateway-class architectures with multi-converter CPL interactions in MATLAB/Simscape and Typhoon HIL.
+            </p>
+            <div class="mt-3 text-[10px] text-gray-500 font-mono">Deliverable: Math Validation Report & Impedance Matrix</div>
+          </div>
+
+          <!-- Milestone 2 -->
+          <div class="bg-gray-950 p-4 rounded-xl border border-gray-800/80 relative">
+            <span class="text-xs mono font-bold text-cyan-400">M2: Months 3–4</span>
+            <h4 class="text-sm font-medium text-gray-200 mt-1">Chirp Inversion DSP Synthesis</h4>
+            <p class="text-xs text-gray-400 mt-2">
+              Develop ultra-low-noise discrete micro-chirp synthesizer. Benchmark frequency-domain identification algorithms on radiation-hardened Microchip PolarFire FPGA.
+            </p>
+            <div class="mt-3 text-[10px] text-gray-500 font-mono">Deliverable: FPGA IP Core & Realtime Bode Generator</div>
+          </div>
+
+          <!-- Milestone 3 -->
+          <div class="bg-gray-950 p-4 rounded-xl border border-gray-800/80 relative">
+            <span class="text-xs mono font-bold text-cyan-400">M3: Month 5</span>
+            <h4 class="text-sm font-medium text-gray-200 mt-1">Active Damping Loop Inversion</h4>
+            <p class="text-xs text-gray-400 mt-2">
+              Implement adaptive loop-shaping digital filters on upstream SAR converters. Demonstrate automatic stabilization under aggressive 5 kW CPL step changes.
+            </p>
+            <div class="mt-3 text-[10px] text-gray-500 font-mono">Deliverable: Closed-Loop Stability Benchmark Data</div>
+          </div>
+
+          <!-- Milestone 4 -->
+          <div class="bg-gray-950 p-4 rounded-xl border border-gray-800/80 relative">
+            <span class="text-xs mono font-bold text-cyan-400">M4: Month 6</span>
+            <h4 class="text-sm font-medium text-gray-200 mt-1">UCF CATER Hardware Test & Phase II</h4>
+            <p class="text-xs text-gray-400 mt-2">
+              Complete end-to-end hardware-in-the-loop validation at UCF CATER power lab using physical GaN microgrid testbed. Formulate Phase II commercialization blueprint.
+            </p>
+            <div class="mt-3 text-[10px] text-gray-500 font-mono">Deliverable: Final TRL 5 Demonstration & Phase II Proposal</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Phase II Hardware Transition Roadmap -->
+      <div class="bg-gradient-to-br from-indigo-950/30 to-gray-900/40 border border-indigo-800/30 rounded-2xl p-6">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <span class="text-xs mono font-semibold text-indigo-400 uppercase tracking-wider">Phase II Transition Blueprint</span>
+            <h3 class="text-lg font-bold text-white mt-1">$850k–$1.2M Hardware Prototyping Roadmap</h3>
+            <p class="text-xs text-gray-300 mt-1 max-w-2xl">
+              Phase II transitions the firmware into space-qualified flight controllers for flight demonstration on a lunar payload host (e.g., Intuitive Machines or Astrobotic CLPS lander).
+            </p>
+          </div>
+          <div class="flex items-center space-x-3">
+            <div class="px-4 py-2 rounded-xl bg-gray-950 border border-gray-800 text-center">
+              <span class="text-[10px] text-gray-400 block uppercase">Phase II Budget</span>
+              <span class="text-lg font-bold mono text-white">$1,150,000</span>
+            </div>
+            <div class="px-4 py-2 rounded-xl bg-gray-950 border border-gray-800 text-center">
+              <span class="text-[10px] text-gray-400 block uppercase">Target TRL</span>
+              <span class="text-lg font-bold mono text-cyan-400">TRL 7 Flight</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 4: COMMERCIAL & NATIONWIDE ARR BREAKDOWN-->
+    <!-- ========================================== -->
+    <div id="viewARR" class="space-y-6 hidden">
+      
+      <!-- Executive Summary Top Callout -->
+      <div class="bg-gradient-to-r from-emerald-950/40 via-cyan-950/20 to-gray-900/60 border border-emerald-800/40 rounded-2xl p-6">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div class="space-y-2">
+            <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 mono">
+              Pure Civil & Commercial Market Transition
+            </span>
+            <h2 class="text-xl sm:text-2xl font-bold text-white">
+              Nationwide Commercial Addressable Market: <span class="text-emerald-400 font-mono">$218.4M Mature ARR</span>
+            </h2>
+            <p class="text-xs sm:text-sm text-gray-300 max-w-3xl leading-relaxed">
+              <strong>Executive Summary:</strong> The physics of constant-power instability is not isolated to spaceflight. Every electric aircraft, AI data center, hydrogen electrolysis plant, and EV megawatt charging hub suffers from Middlebrook impedance mismatch when high-bandwidth power electronics interact. BusStability provides an autonomous, zero-hardware firmware solution that monitors and stabilizes distributed DC buses in software.
+            </p>
+          </div>
+          <div class="p-4 rounded-xl bg-gray-950 border border-gray-800 text-center shrink-0 min-w-[200px]">
+            <span class="text-xs text-gray-400 block uppercase tracking-wider">Enterprise Valuation (10x SaaS)</span>
+            <span class="text-2xl font-bold mono text-emerald-400">$2.18 Billion</span>
+            <span class="text-[11px] text-gray-500 block mt-1">Deep-Tech Infrastructure Multiple</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ARR Breakdown Table -->
+      <div class="bg-gray-900/40 border border-gray-800 rounded-2xl overflow-hidden">
+        <div class="p-5 border-b border-gray-800 flex items-center justify-between">
+          <div>
+            <h3 class="text-sm font-semibold uppercase tracking-wider text-gray-200">Commercial Vertical Revenue Breakdown</h3>
+            <p class="text-xs text-gray-400">Software runtime licensing & autonomous PMAD supervisory subscriptions</p>
+          </div>
+          <span class="text-xs mono text-cyan-400 font-medium">6 Civil Sectors</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-gray-950/80 text-gray-400 uppercase font-mono text-[11px] border-b border-gray-800">
+              <tr>
+                <th class="p-3.5 pl-6">Target Industry Sector</th>
+                <th class="p-3.5">Specific Application</th>
+                <th class="p-3.5">Software Pricing Model</th>
+                <th class="p-3.5">Nationwide Asset Base</th>
+                <th class="p-3.5 pr-6 text-right">Mature Annual ARR</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-800/60 text-gray-300 font-mono">
+              <tr class="hover:bg-gray-800/20 transition">
+                <td class="p-3.5 pl-6 font-semibold text-white flex items-center space-x-2">
+                  <i data-lucide="plane" class="w-4 h-4 text-cyan-400"></i>
+                  <span>Urban Air Mobility & eVTOL</span>
+                </td>
+                <td class="p-3.5">800V DC flight propulsion buses with dynamic motor inverters (CPLs)</td>
+                <td class="p-3.5 text-gray-400">$4,500 / aircraft / year</td>
+                <td class="p-3.5">12,000 aircraft</td>
+                <td class="p-3.5 pr-6 text-right font-bold text-cyan-400">$54.0M</td>
+              </tr>
+
+              <tr class="hover:bg-gray-800/20 transition">
+                <td class="p-3.5 pl-6 font-semibold text-white flex items-center space-x-2">
+                  <i data-lucide="server" class="w-4 h-4 text-indigo-400"></i>
+                  <span>Hyperscale AI Data Centers</span>
+                </td>
+                <td class="p-3.5">48V DC busbars feeding 100kW GPU racks during high-frequency compute bursts</td>
+                <td class="p-3.5 text-gray-400">$1,200 / rack / year</td>
+                <td class="p-3.5">45,000 high-density racks</td>
+                <td class="p-3.5 pr-6 text-right font-bold text-indigo-400">$54.0M</td>
+              </tr>
+
+              <tr class="hover:bg-gray-800/20 transition">
+                <td class="p-3.5 pl-6 font-semibold text-white flex items-center space-x-2">
+                  <i data-lucide="satellite" class="w-4 h-4 text-amber-400"></i>
+                  <span>Commercial LEO Satellite Megaconstellations</span>
+                </td>
+                <td class="p-3.5">Regulated 50V/100V satellite bus with continuous ion engine firings</td>
+                <td class="p-3.5 text-gray-400">$2,800 / satellite / year</td>
+                <td class="p-3.5">14,000 active satellites</td>
+                <td class="p-3.5 pr-6 text-right font-bold text-amber-400">$39.2M</td>
+              </tr>
+
+              <tr class="hover:bg-gray-800/20 transition">
+                <td class="p-3.5 pl-6 font-semibold text-white flex items-center space-x-2">
+                  <i data-lucide="battery-charging" class="w-4 h-4 text-emerald-400"></i>
+                  <span>EV Megawatt Charging Stations (MCS)</span>
+                </td>
+                <td class="p-3.5">Shared 1500V DC medium-voltage microgrids with dynamic vehicle chargers</td>
+                <td class="p-3.5 text-gray-400">$3,200 / station cluster / yr</td>
+                <td class="p-3.5">9,500 commercial hubs</td>
+                <td class="p-3.5 pr-6 text-right font-bold text-emerald-400">$30.4M</td>
+              </tr>
+
+              <tr class="hover:bg-gray-800/20 transition">
+                <td class="p-3.5 pl-6 font-semibold text-white flex items-center space-x-2">
+                  <i data-lucide="sun" class="w-4 h-4 text-yellow-400"></i>
+                  <span>Commercial DC Microgrids & Solar BESS</span>
+                </td>
+                <td class="p-3.5">Direct DC-coupled solar farms with battery storage and commercial inverters</td>
+                <td class="p-3.5 text-gray-400">$6,000 / utility site / year</td>
+                <td class="p-3.5">4,200 commercial microgrids</td>
+                <td class="p-3.5 pr-6 text-right font-bold text-yellow-400">$25.2M</td>
+              </tr>
+
+              <tr class="hover:bg-gray-800/20 transition">
+                <td class="p-3.5 pl-6 font-semibold text-white flex items-center space-x-2">
+                  <i data-lucide="droplet" class="w-4 h-4 text-teal-400"></i>
+                  <span>Green Hydrogen Electrolyzers</span>
+                </td>
+                <td class="p-3.5">High-amperage PEM stacks driven by rapid pulsed renewable power inputs</td>
+                <td class="p-3.5 text-gray-400">$10,500 / plant / year</td>
+                <td class="p-3.5">1,500 plants</td>
+                <td class="p-3.5 pr-6 text-right font-bold text-teal-400">$15.6M</td>
+              </tr>
+            </tbody>
+            <tfoot class="bg-gray-950 font-mono border-t border-gray-700">
+              <tr>
+                <td colspan="4" class="p-4 pl-6 text-right font-bold text-white uppercase">Total Nationwide Addressable Commercial ARR:</td>
+                <td class="p-4 pr-6 text-right font-bold text-base text-emerald-400">$218.4M / yr</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- Detailed Industry Deep Dive Cards (Physics in 1 Sentence & Why Others Missed This) -->
+      <div class="space-y-4">
+        <h3 class="text-sm font-semibold uppercase tracking-wider text-gray-200">Industry Deep-Dive Technical Foundations</h3>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Card 1: eVTOL -->
+          <div class="p-4 rounded-xl bg-gray-900/40 border border-gray-800 space-y-2">
+            <div class="flex items-center space-x-2 text-cyan-400 font-semibold text-xs">
+              <i data-lucide="plane" class="w-4 h-4"></i>
+              <span>1. Urban Air Mobility & eVTOL Aviation</span>
+            </div>
+            <p class="text-xs text-gray-300">
+              <strong>Physics in 1 Sentence:</strong> When 8 high-thrust motor inverters aggressively throttle down while airspeed increases, their instantaneous negative dynamic impedance collapses the central 800V DC bus filter margin.
+            </p>
+            <p class="text-xs text-gray-400">
+              <strong>Why Others Missed This:</strong> Legacy aerospace relies on massive, heavy passive electrolytic capacitor banks that add hundreds of kilograms of parasitic deadweight, severely slashing flight range. BusStability solves it purely in digital software with zero grams added.
+            </p>
+          </div>
+
+          <!-- Card 2: AI Data Centers -->
+          <div class="p-4 rounded-xl bg-gray-900/40 border border-gray-800 space-y-2">
+            <div class="flex items-center space-x-2 text-indigo-400 font-semibold text-xs">
+              <i data-lucide="server" class="w-4 h-4"></i>
+              <span>2. Hyperscale AI Data Centers (48V Busbars)</span>
+            </div>
+            <p class="text-xs text-gray-300">
+              <strong>Physics in 1 Sentence:</strong> 1,000A AI training bursts switch from 10% to 100% duty cycle in nanoseconds, creating a negative-resistance loop with long busbar parasitic inductances.
+            </p>
+            <p class="text-xs text-gray-400">
+              <strong>Why Others Missed This:</strong> Data center operators continually swap out power supply units or over-provision busbar copper, ignoring the fundamental impedance overlap between server board voltage regulators and busbar filters.
+            </p>
+          </div>
+
+          <!-- Card 3: Megawatt EV Charging -->
+          <div class="p-4 rounded-xl bg-gray-900/40 border border-gray-800 space-y-2">
+            <div class="flex items-center space-x-2 text-emerald-400 font-semibold text-xs">
+              <i data-lucide="battery-charging" class="w-4 h-4"></i>
+              <span>3. EV Megawatt Charging Hubs</span>
+            </div>
+            <p class="text-xs text-gray-300">
+              <strong>Physics in 1 Sentence:</strong> Simultaneous fast-charging of multiple semi-trucks causes dynamic impedance interactions that trip upstream medium-voltage solid-state transformers on nuisance harmonic overvoltage.
+            </p>
+            <p class="text-xs text-gray-400">
+              <strong>Why Others Missed This:</strong> Incumbents treat every charger as an isolated black box, failing to observe the shared microgrid resonance until the central breaker nuisance-trips under load.
+            </p>
+          </div>
+
+          <!-- Card 4: Satellite Megaconstellations -->
+          <div class="p-4 rounded-xl bg-gray-900/40 border border-gray-800 space-y-2">
+            <div class="flex items-center space-x-2 text-amber-400 font-semibold text-xs">
+              <i data-lucide="satellite" class="w-4 h-4"></i>
+              <span>4. Commercial Satellite Megaconstellations</span>
+            </div>
+            <p class="text-xs text-gray-300">
+              <strong>Physics in 1 Sentence:</strong> Total Ionizing Dose (TID) radiation steadily degrades bus capacitor ESR over 5 years in orbit, shifting the filter resonance directly into the negative-impedance operating point of electric thrusters.
+            </p>
+            <p class="text-xs text-gray-400">
+              <strong>Why Others Missed This:</strong> Satellite manufacturers validate impedance only on the ground at Beginning-of-Life (BOL); when satellites inexplicably reboot 3 years into orbit, they blame random single-event upsets instead of impedance collapse.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Direct Collaboration CTA -->
+      <div class="p-6 rounded-2xl bg-gray-900/60 border border-cyan-800/40 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div>
+          <h4 class="text-base font-bold text-white">Commercial Licensing & STTR Inquiries</h4>
+          <p class="text-xs text-gray-400 mt-1">
+            Request reference C-code implementations, Typhoon HIL models, or discuss subcontracts for upcoming NASA / commercial spacecraft flights.
+          </p>
+        </div>
+        <a href="mailto:support@rfwavecode.com" class="px-5 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-gray-950 font-semibold text-xs transition duration-150 flex items-center space-x-2 shrink-0 shadow-lg shadow-cyan-500/20">
+          <i data-lucide="mail" class="w-4 h-4"></i>
+          <span>Contact: support@rfwavecode.com</span>
+        </a>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-gray-800 bg-gray-950 py-4 px-6 text-center text-xs text-gray-500 mono">
+    BusStability &bull; Autonomous PMAD Impedance Interactor &bull; NASA SBIR Topic TX03.02 &bull; University of Central Florida (UCF) STTR Partner
+  </footer>
+
+  <!-- ========================================== -->
+  <!-- JAVASCRIPT SIMULATION & CHART LOGIC        -->
+  <!-- ========================================== -->
+  <script>
+    // -------------------------------------------------------------
+    // Tab Switching Logic with Explicit Mapping
+    // -------------------------------------------------------------
+    const tabMapping = {
+      'sim': { viewId: 'viewSim', btnId: 'tabBtnSim' },
+      'physics': { viewId: 'viewPhysics', btnId: 'tabBtnPhysics' },
+      'proposal': { viewId: 'viewProposal', btnId: 'tabBtnProposal' },
+      'arr': { viewId: 'viewARR', btnId: 'tabBtnARR' }
+    };
+
+    function switchTab(targetTab) {
+      Object.keys(tabMapping).forEach(tab => {
+        const view = document.getElementById(tabMapping[tab].viewId);
+        const btn = document.getElementById(tabMapping[tab].btnId);
+        if (tab === targetTab) {
+          view.classList.remove('hidden');
+          btn.className = "px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium rounded-lg transition-all duration-150 flex items-center space-x-1.5 bg-cyan-500 text-white shadow-md shadow-cyan-500/25";
+        } else {
+          view.classList.add('hidden');
+          btn.className = "px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium rounded-lg text-gray-400 hover:text-white transition-all duration-150 flex items-center space-x-1.5";
+        }
+      });
+
+      // Typeset formulas when switching tabs
+      if (window.MathJax && window.MathJax.typesetPromise) {
+        window.MathJax.typesetPromise();
+      }
+
+      // Re-trigger icon rendering & canvas dimensions if sim tab opened
+      if (targetTab === 'sim') {
+        setTimeout(() => {
+          resizeCanvas();
+        }, 50);
+      }
+      lucide.createIcons();
+    }
+
+    // -------------------------------------------------------------
+    // Physical Microgrid Model & System State
+    // -------------------------------------------------------------
+    const state = {
+      vNominal: 120.0,      // Volts nominal bus
+      vBus: 120.0,          // Dynamic instantaneous bus voltage
+      cplPower: 3600,       // Watts
+      lBus: 35e-6,          // Henries (35 uH)
+      cBus: 180e-6,         // Farads (180 uF)
+      rBus: 0.04,           // Series resistance of wiring & inductors (40 mOhm)
+      activeDampGain: 0.65, // Virtual damping conductance / resistance
+      autoDampingEnabled: true,
+      time: 0,
+      chirpPulse: 0,
+      chirpTimer: 0,
+      vRipple: 0.35,
+      isOscillating: false,
+      stabilityMarginDb: 11.4,
+      peakZs: 1.82,
+      minZl: 4.00,
+      resonantFreq: 420,
+      historyVbus: [],
+      historyDamp: [],
+      maxPoints: 80
+    };
+
+    // Initialize telemetry history
+    for (let i = 0; i < state.maxPoints; i++) {
+      state.historyVbus.push(120.0);
+      state.historyDamp.push(0.42);
+    }
+
+    // -------------------------------------------------------------
+    // Setup Chart.js Graphs
+    // -------------------------------------------------------------
+    // 1. Primary Bode Chart (Frequency vs Impedance)
+    const bodeCtx = document.getElementById('bodeChart').getContext('2d');
+    
+    // Generate Logarithmic Frequency Points (10 Hz to 100 kHz)
+    const freqLabels = [];
+    const freqValues = [];
+    const numFreqSteps = 100;
+    for (let i = 0; i <= numFreqSteps; i++) {
+      const logF = 1 + (4 * i / numFreqSteps); // 10^1 to 10^5 Hz
+      const f = Math.pow(10, logF);
+      freqValues.push(f);
+      freqLabels.push(f < 1000 ? `${Math.round(f)}Hz` : `${(f/1000).toFixed(1)}kHz`);
+    }
+
+    const bodeChart = new Chart(bodeCtx, {
+      type: 'line',
+      data: {
+        labels: freqLabels,
+        datasets: [
+          {
+            label: 'Source Output Impedance |Zs(f)|',
+            data: [],
+            borderColor: '#06b6d4',
+            backgroundColor: 'rgba(6, 182, 212, 0.1)',
+            borderWidth: 2.5,
+            pointRadius: 0,
+            tension: 0.2
+          },
+          {
+            label: 'Load Input Impedance |Zl(f)| (CPL Boundary)',
+            data: [],
+            borderColor: '#f59e0b',
+            borderDash: [5, 4],
+            backgroundColor: 'transparent',
+            borderWidth: 2.2,
+            pointRadius: 0,
+            tension: 0.2
+          },
+          {
+            label: 'Hazard Overlap Region (Middlebrook Violation)',
+            data: [],
+            borderColor: 'rgba(239, 68, 68, 0.4)',
+            backgroundColor: 'rgba(239, 68, 68, 0.15)',
+            borderWidth: 1,
+            fill: true,
+            pointRadius: 0
+          },
+          {
+            label: 'Live Operating Point @ Resonance',
+            data: [],
+            borderColor: '#ffffff',
+            backgroundColor: '#10b981',
+            pointRadius: 6,
+            pointHoverRadius: 8,
+            showLine: false
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 120 },
+        scales: {
+          x: {
+            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            ticks: {
+              color: '#94a3b8',
+              maxTicksLimit: 7,
+              font: { family: 'JetBrains Mono', size: 10 }
+            }
+          },
+          y: {
+            title: {
+              display: true,
+              text: 'Impedance Magnitude |Z| (Ohms)',
+              color: '#94a3b8',
+              font: { family: 'Inter', size: 10 }
+            },
+            type: 'logarithmic',
+            min: 0.1,
+            max: 50,
+            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            ticks: {
+              color: '#94a3b8',
+              callback: function(val) {
+                return val === 0.1 || val === 1 || val === 10 || val === 50 ? val + ' Ω' : '';
+              },
+              font: { family: 'JetBrains Mono', size: 10 }
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            labels: {
+              color: '#cbd5e1',
+              font: { size: 10, family: 'Inter' },
+              boxWidth: 12
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => `${ctx.dataset.label}: ${ctx.raw.toFixed(2)} Ω`
+            }
+          }
+        }
+      }
+    });
+
+    // 2. Bus Dynamic Transient Voltage Time Chart
+    const vbusCtx = document.getElementById('vbusTimeChart').getContext('2d');
+    const vbusTimeChart = new Chart(vbusCtx, {
+      type: 'line',
+      data: {
+        labels: Array(state.maxPoints).fill(''),
+        datasets: [{
+          label: 'Vbus (V)',
+          data: [...state.historyVbus],
+          borderColor: '#06b6d4',
+          borderWidth: 1.8,
+          pointRadius: 0,
+          tension: 0.3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        scales: {
+          x: { display: false },
+          y: {
+            min: 110,
+            max: 130,
+            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 }, stepSize: 5 }
+          }
+        },
+        plugins: {
+          legend: { display: false }
+        }
+      }
+    });
+
+    // 3. Active Damping Duty Mod Chart
+    const dampCtx = document.getElementById('dampingTimeChart').getContext('2d');
+    const dampingTimeChart = new Chart(dampCtx, {
+      type: 'line',
+      data: {
+        labels: Array(state.maxPoints).fill(''),
+        datasets: [{
+          label: 'Damping Current (A)',
+          data: [...state.historyDamp],
+          borderColor: '#818cf8',
+          borderWidth: 1.8,
+          pointRadius: 0,
+          tension: 0.2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        scales: {
+          x: { display: false },
+          y: {
+            min: -1.0,
+            max: 2.0,
+            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 }, stepSize: 0.5 }
+          }
+        },
+        plugins: {
+          legend: { display: false }
+        }
+      }
+    });
+
+    // -------------------------------------------------------------
+    // Physical Microgrid Canvas Rendering
+    // -------------------------------------------------------------
+    const canvas = document.getElementById('microgridCanvas');
+    const ctx = canvas.getContext('2d');
+    let canvasW = 600;
+    let canvasH = 400;
+
+    function resizeCanvas() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      canvasW = rect.width || 600;
+      canvasH = rect.height || 400;
+      canvas.width = canvasW * window.devicePixelRatio;
+      canvas.height = canvasH * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // Electrical Bus Particle Flow System
+    const particles = [];
+    for (let i = 0; i < 35; i++) {
+      particles.push({
+        x: Math.random() * 500,
+        y: 0,
+        speed: 1 + Math.random() * 2,
+        size: 2 + Math.random() * 2,
+        hue: Math.random() > 0.5 ? 180 : 200
+      });
+    }
+
+    function drawMicrogridCanvas() {
+      ctx.clearRect(0, 0, canvasW, canvasH);
+
+      // Coordinates for Microgrid Topology
+      const srcBox = { x: 30, y: canvasH * 0.35, w: 90, h: 80 };
+      const filterBox = { x: 160, y: canvasH * 0.35, w: 90, h: 80 };
+      const busY = canvasH * 0.5;
+      const load1Box = { x: canvasW - 130, y: canvasH * 0.2, w: 105, h: 65 };
+      const load2Box = { x: canvasW - 130, y: canvasH * 0.6, w: 105, h: 65 };
+
+      // Bus line glow & drawing
+      const busColor = state.isOscillating ? '#ef4444' : '#06b6d4';
+      ctx.strokeStyle = busColor;
+      ctx.lineWidth = 3;
+      ctx.shadowColor = busColor;
+      ctx.shadowBlur = state.isOscillating ? 15 : 8;
+
+      // Draw Main Power Bus Trunk
+      ctx.beginPath();
+      // From Source to Filter
+      ctx.moveTo(srcBox.x + srcBox.w, busY);
+      ctx.lineTo(filterBox.x, busY);
+      // Through Filter to Branching point
+      ctx.moveTo(filterBox.x + filterBox.w, busY);
+      const branchX = canvasW - 180;
+      ctx.lineTo(branchX, busY);
+      // Branch to Load 1
+      ctx.lineTo(branchX, load1Box.y + load1Box.h / 2);
+      ctx.lineTo(load1Box.x, load1Box.y + load1Box.h / 2);
+      // Branch to Load 2
+      ctx.moveTo(branchX, busY);
+      ctx.lineTo(branchX, load2Box.y + load2Box.h / 2);
+      ctx.lineTo(load2Box.x, load2Box.y + load2Box.h / 2);
+      ctx.stroke();
+      ctx.shadowBlur = 0; // reset shadow
+
+      // Draw Flowing Current Particles
+      particles.forEach(p => {
+        p.x += p.speed * (state.isOscillating ? (Math.sin(state.time * 8) > 0 ? 3.5 : -1.2) : 2.0);
+        if (p.x > branchX) {
+          // split
+          p.y = (p.hue > 190) ? load1Box.y + load1Box.h / 2 : load2Box.y + load2Box.h / 2;
+        } else {
+          p.y = busY;
+        }
+        if (p.x > canvasW - 30) p.x = srcBox.x + 10;
+        if (p.x < srcBox.x) p.x = branchX;
+
+        ctx.fillStyle = state.isOscillating ? '#fca5a5' : '#67e8f9';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // 1. Source Module Box (Solar Array Regulator / Battery)
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1.5;
+      roundRect(ctx, srcBox.x, srcBox.y, srcBox.w, srcBox.h, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = '10px Inter, sans-serif';
+      ctx.fillText('SAR / BATT', srcBox.x + 15, srcBox.y + 25);
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 11px JetBrains Mono, monospace';
+      ctx.fillText('120V Reg', srcBox.x + 16, srcBox.y + 44);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '9px Inter';
+      ctx.fillText('Z_source(s)', srcBox.x + 18, srcBox.y + 62);
+
+      // Active Damping Indicator Glow on Source
+      if (state.autoDampingEnabled && state.activeDampGain > 0) {
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(srcBox.x - 3, srcBox.y - 3, srcBox.w + 6, srcBox.h + 6);
+        ctx.fillStyle = '#10b981';
+        ctx.font = '8px JetBrains Mono';
+        ctx.fillText('ACTIVE DAMP', srcBox.x + 13, srcBox.y - 6);
+      }
+
+      // 2. Bus LC Filter Box
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = '#818cf8';
+      roundRect(ctx, filterBox.x, filterBox.y, filterBox.w, filterBox.h, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = '10px Inter';
+      ctx.fillText('LC EMI Filter', filterBox.x + 14, filterBox.y + 25);
+      ctx.fillStyle = '#a5b4fc';
+      ctx.font = '10px JetBrains Mono';
+      ctx.fillText(`L:${Math.round(state.lBus*1e6)}uH`, filterBox.x + 22, filterBox.y + 44);
+      ctx.fillText(`C:${Math.round(state.cBus*1e6)}uF`, filterBox.x + 22, filterBox.y + 60);
+
+      // 3. Constant-Power Load 1: Electric Propulsion (Hall Thruster)
+      ctx.fillStyle = '#1e1b4b';
+      ctx.strokeStyle = '#f59e0b';
+      roundRect(ctx, load1Box.x, load1Box.y, load1Box.w, load1Box.h, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = 'bold 10px Inter';
+      ctx.fillText('CPL 1: Hall Thruster', load1Box.x + 8, load1Box.y + 22);
+      ctx.fillStyle = '#fde68a';
+      ctx.font = '9px JetBrains Mono';
+      const cplP1 = (state.cplPower * 0.7 / 1000).toFixed(1);
+      ctx.fillText(`${cplP1} kW (Negative Rin)`, load1Box.x + 8, load1Box.y + 40);
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText('PPU Inverter', load1Box.x + 8, load1Box.y + 54);
+
+      // 4. Constant-Power Load 2: Cryocooler & Avionics
+      ctx.fillStyle = '#1e1b4b';
+      ctx.strokeStyle = '#f59e0b';
+      roundRect(ctx, load2Box.x, load2Box.y, load2Box.w, load2Box.h, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = 'bold 10px Inter';
+      ctx.fillText('CPL 2: Cryo Chiller', load2Box.x + 8, load2Box.y + 22);
+      ctx.fillStyle = '#fde68a';
+      ctx.font = '9px JetBrains Mono';
+      const cplP2 = (state.cplPower * 0.3 / 1000).toFixed(1);
+      ctx.fillText(`${cplP2} kW (Constant P)`, load2Box.x + 8, load2Box.y + 40);
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText('Stirling Compressor', load2Box.x + 8, load2Box.y + 54);
+
+      // Micro-chirp injection ripple visual wave at Source
+      if (state.chirpTimer > 0) {
+        ctx.strokeStyle = 'rgba(6, 182, 212, 0.8)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let x = 0; x < 60; x++) {
+          const yOff = Math.sin(x * 0.4 + state.time * 25) * 8;
+          if (x === 0) ctx.moveTo(srcBox.x + srcBox.w + x, busY + yOff);
+          else ctx.lineTo(srcBox.x + srcBox.w + x, busY + yOff);
+        }
+        ctx.stroke();
+      }
+    }
+
+    function roundRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+
+    // -------------------------------------------------------------
+    // Middlebrook Physics & Dynamic Math Engine
+    // -------------------------------------------------------------
+    function updatePhysicsModel() {
+      // 1. Calculate Equivalent Negative Incremental Resistance of CPL
+      // Rin = - Vbus^2 / P_cpl
+      const rInIncremental = - (state.vNominal * state.vNominal) / state.cplPower;
+      const magRin = Math.abs(rInIncremental);
+      state.minZl = magRin;
+
+      // 2. Natural Resonant Frequency of the Bus Filter
+      // f0 = 1 / (2 * pi * sqrt(L * C))
+      const omega0 = 1 / Math.sqrt(state.lBus * state.cBus);
+      const f0 = omega0 / (2 * Math.PI);
+      state.resonantFreq = Math.round(f0);
+
+      // 3. Characteristic Impedance
+      const z0 = Math.sqrt(state.lBus / state.cBus);
+
+      // 4. Source Output Impedance at Resonance without damping
+      // Q = z0 / R_series
+      const qUncompensated = z0 / state.rBus;
+      const peakZsUncompensated = z0 * qUncompensated * 0.25;
+
+      // 5. Active Damping Compensation
+      // Virtual resistor in parallel reduces peak Q
+      let effectiveDamping = state.activeDampGain;
+      if (!state.autoDampingEnabled) {
+        effectiveDamping = 0; // manual or disabled
+      }
+      const dampingFactor = 1 + (effectiveDamping * z0 * 1.8);
+      const peakZs = peakZsUncompensated / dampingFactor;
+      state.peakZs = Math.max(0.2, peakZs);
+
+      // 6. Stability Check (Middlebrook Criterion)
+      // Impedance margin: Margin = 20 * log10(|Z_L| / |Z_S|)
+      const impedanceRatio = state.peakZs / state.minZl;
+      const marginDb = 20 * Math.log10(state.minZl / state.peakZs);
+      state.stabilityMarginDb = marginDb;
+
+      // Overlap or dangerously low margin indicates limit cycle instability
+      state.isOscillating = impedanceRatio >= 0.95;
+
+      // Compute Dynamic Bus Voltage with Ripple / Collapse
+      if (state.isOscillating) {
+        // Limit-cycle negative resistance oscillations: amplitude grows
+        state.vRipple = Math.min(22.0, state.vRipple + 0.4);
+        state.vBus = state.vNominal + (Math.sin(state.time * omega0 * 0.05) * state.vRipple);
+      } else {
+        // Damped nominal operation
+        state.vRipple = Math.max(0.28, state.vRipple * 0.94);
+        state.vBus = state.vNominal + (Math.sin(state.time * 6) * state.vRipple);
+      }
+
+      // Update Telemetry Display Elements
+      document.getElementById('telemetryVbus').innerText = `${state.vBus.toFixed(1)} V`;
+      document.getElementById('telemetryPower').innerText = `${state.cplPower.toLocaleString()} W`;
+      document.getElementById('telemetryEffZ').innerHTML = `Incremental $R_{in} = -${magRin.toFixed(2)}\\,\\Omega$`;
+      document.getElementById('telemetryMargin').innerText = `${marginDb >= 0 ? '+' : ''}${marginDb.toFixed(1)} dB`;
+      document.getElementById('telemetryOverlap').innerText = `Resonance: f₀ ≈ ${state.resonantFreq} Hz`;
+
+      const statusBadge = document.getElementById('telemetryStatus');
+      const marginIconBox = document.getElementById('marginIconBox');
+      const marginIcon = document.getElementById('marginIcon');
+      const warningBanner = document.getElementById('oscillationWarning');
+
+      if (state.isOscillating) {
+        statusBadge.className = "text-xs font-semibold mono px-2.5 py-1 rounded bg-rose-950 text-rose-400 border border-rose-600 inline-block mt-1 animate-pulse";
+        statusBadge.innerText = "CRITICAL: OSCILLATION COLLAPSE";
+        marginIconBox.className = "p-3 bg-rose-950/60 border border-rose-800 rounded-lg text-rose-400";
+        marginIcon.setAttribute('data-lucide', 'alert-octagon');
+        warningBanner.classList.remove('hidden');
+      } else if (marginDb < 4.0) {
+        statusBadge.className = "text-xs font-semibold mono px-2.5 py-1 rounded bg-amber-950 text-amber-400 border border-amber-600 inline-block mt-1";
+        statusBadge.innerText = "MARGIN DEGRADED (< 4dB)";
+        marginIconBox.className = "p-3 bg-amber-950/40 border border-amber-800/40 rounded-lg text-amber-400";
+        marginIcon.setAttribute('data-lucide', 'alert-triangle');
+        warningBanner.classList.add('hidden');
+      } else {
+        statusBadge.className = "text-xs font-semibold mono px-2.5 py-1 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800 inline-block mt-1";
+        statusBadge.innerText = "STABLE (NOMINAL)";
+        marginIconBox.className = "p-3 bg-emerald-950/40 border border-emerald-800/40 rounded-lg text-emerald-400";
+        marginIcon.setAttribute('data-lucide', 'shield-check');
+        warningBanner.classList.add('hidden');
+      }
+
+      document.getElementById('telemetryObserver').innerText = state.autoDampingEnabled 
+        ? `Autonomous Damping: Active (Gv = ${(state.activeDampGain * 0.65).toFixed(2)} S)` 
+        : 'Autonomous Damping: DISABLED';
+
+      document.getElementById('valPeakZs').innerHTML = `${state.peakZs.toFixed(2)} $\\Omega$ (${(20*Math.log10(state.peakZs)).toFixed(1)} dB$\\Omega$)`;
+      document.getElementById('valMinZl').innerHTML = `${state.minZl.toFixed(2)} $\\Omega$ (${(20*Math.log10(state.minZl)).toFixed(1)} dB$\\Omega$)`;
+      document.getElementById('valTm').innerHTML = `${impedanceRatio.toFixed(3)} (${state.isOscillating ? 'UNSTABLE' : 'STABLE'})`;
+      document.getElementById('vRippleLabel').innerText = `Ripple: ±${state.vRipple.toFixed(2)} V`;
+      document.getElementById('dampStateLabel').innerText = `Virtual Conductance: ${(state.activeDampGain*0.65).toFixed(2)} S`;
+
+      // 7. Recompute Bode Plot Curves
+      const zsCurve = [];
+      const zlCurve = [];
+      const hazardCurve = [];
+      let operatingPoint = null;
+
+      const L = state.lBus;
+      const C = state.cBus;
+      const R_s = state.rBus;
+
+      for (let i = 0; i < freqValues.length; i++) {
+        const f = freqValues[i];
+        const w = 2 * Math.PI * f;
+
+        // Impedance of series inductor branch: Z_L_branch = R_s + j*w*L
+        // Impedance of capacitor branch: Z_C_branch = 1 / (j*w*C)
+        // Source output impedance = parallel combination
+        const denReal = 1 - (w * w * L * C);
+        const denImag = w * C * R_s + (effectiveDamping * w * L);
+        const denMag = Math.sqrt(denReal * denReal + denImag * denImag);
+        const numMag = Math.sqrt(R_s * R_s + w * w * L * L);
+        let zsMag = (numMag / Math.max(0.01, denMag));
+
+        // Load input impedance (constant-power dynamic resistance in parallel with input bypass cap)
+        // Z_load(f) = | -Rin || (1 / jwC) |
+        const zlMag = magRin / Math.sqrt(1 + Math.pow(w * 20e-6 * magRin, 2));
+
+        zsCurve.push(zsMag);
+        zlCurve.push(zlMag);
+
+        // Hazard envelope is when Zs is within 3dB of Zl
+        hazardCurve.push(zlMag * 0.75);
+
+        // Capture operating point at resonant peak
+        if (!operatingPoint && f >= f0) {
+          operatingPoint = { x: freqLabels[i], y: zsMag };
+        }
+      }
+
+      bodeChart.data.datasets[0].data = zsCurve;
+      bodeChart.data.datasets[1].data = zlCurve;
+      bodeChart.data.datasets[2].data = hazardCurve;
+      bodeChart.data.datasets[3].data = operatingPoint ? [operatingPoint] : [];
+      bodeChart.update();
+    }
+
+    // -------------------------------------------------------------
+    // Realtime Simulation Loop
+    // -------------------------------------------------------------
+    let tickCount = 0;
+    function simulationStep() {
+      state.time += 0.04;
+      if (state.chirpTimer > 0) state.chirpTimer -= 0.04;
+
+      // Autonomous Observer Logic:
+      // If Middlebrook margin is dangerously thin, autonomously ramp active damping
+      if (state.autoDampingEnabled) {
+        const ratio = state.peakZs / state.minZl;
+        if (ratio > 0.65 && state.activeDampGain < 1.8) {
+          state.activeDampGain += 0.03;
+          document.getElementById('sliderDamp').value = state.activeDampGain;
+          document.getElementById('sliderValDamp').innerText = `${state.activeDampGain.toFixed(2)} Ω Eq`;
+        }
+      }
+
+      // Physics calculation update
+      updatePhysicsModel();
+
+      // Push history buffers for telemetry strip charts
+      state.historyVbus.push(state.vBus);
+      state.historyVbus.shift();
+
+      const dampCurrent = state.activeDampGain * (state.vBus - state.vNominal);
+      state.historyDamp.push(dampCurrent);
+      state.historyDamp.shift();
+
+      // Throttle secondary charts to every 3 frames for 60fps performance
+      tickCount++;
+      if (tickCount % 3 === 0) {
+        vbusTimeChart.data.datasets[0].data = [...state.historyVbus];
+        vbusTimeChart.update();
+
+        dampingTimeChart.data.datasets[0].data = [...state.historyDamp];
+        dampingTimeChart.update();
+      }
+
+      // Draw canvas
+      drawMicrogridCanvas();
+    }
+
+    // Start 25Hz physical update timer
+    setInterval(simulationStep, 40);
+
+    // -------------------------------------------------------------
+    // Interactive User Controls & Sliders
+    // -------------------------------------------------------------
+    const sliderPower = document.getElementById('sliderPower');
+    sliderPower.addEventListener('input', (e) => {
+      state.cplPower = parseFloat(e.target.value);
+      document.getElementById('sliderValPower').innerText = `${(state.cplPower / 1000).toFixed(2)} kW`;
+    });
+
+    const sliderInductance = document.getElementById('sliderInductance');
+    sliderInductance.addEventListener('input', (e) => {
+      const uH = parseFloat(e.target.value);
+      state.lBus = uH * 1e-6;
+      document.getElementById('sliderValInductance').innerText = `${uH} µH`;
+    });
+
+    const sliderCap = document.getElementById('sliderCap');
+    sliderCap.addEventListener('input', (e) => {
+      const uF = parseFloat(e.target.value);
+      state.cBus = uF * 1e-6;
+      document.getElementById('sliderValCap').innerText = `${uF} µF`;
+    });
+
+    const sliderDamp = document.getElementById('sliderDamp');
+    sliderDamp.addEventListener('input', (e) => {
+      state.activeDampGain = parseFloat(e.target.value);
+      document.getElementById('sliderValDamp').innerText = `${state.activeDampGain.toFixed(2)} Ω Eq`;
+    });
+
+    const autoDampToggle = document.getElementById('autoDampToggle');
+    autoDampToggle.addEventListener('change', (e) => {
+      state.autoDampingEnabled = e.target.checked;
+    });
+
+    function injectChirpPulse() {
+      state.chirpTimer = 1.2;
+      state.vRipple += 0.45;
+    }
+
+    function resetToNominal() {
+      state.cplPower = 3600;
+      state.lBus = 35e-6;
+      state.cBus = 180e-6;
+      state.activeDampGain = 0.65;
+      state.autoDampingEnabled = true;
+      state.vRipple = 0.35;
+
+      sliderPower.value = 3600;
+      sliderInductance.value = 35;
+      sliderCap.value = 180;
+      sliderDamp.value = 0.65;
+      autoDampToggle.checked = true;
+
+      document.getElementById('sliderValPower').innerText = '3.60 kW';
+      document.getElementById('sliderValInductance').innerText = '35 µH';
+      document.getElementById('sliderValCap').innerText = '180 µF';
+      document.getElementById('sliderValDamp').innerText = '0.65 Ω Eq';
+    }
+
+    function loadScenario(type) {
+      if (type === 'cruise') {
+        resetToNominal();
+      } else if (type === 'thruster') {
+        // High load near intersection
+        state.cplPower = 6200;
+        state.lBus = 45e-6;
+        state.cBus = 140e-6;
+        state.activeDampGain = 0.3;
+        state.autoDampingEnabled = false;
+
+        sliderPower.value = 6200;
+        sliderInductance.value = 45;
+        sliderCap.value = 140;
+        sliderDamp.value = 0.3;
+        autoDampToggle.checked = false;
+
+        document.getElementById('sliderValPower').innerText = '6.20 kW';
+        document.getElementById('sliderValInductance').innerText = '45 µH';
+        document.getElementById('sliderValCap').innerText = '140 µF';
+        document.getElementById('sliderValDamp').innerText = '0.30 Ω Eq';
+      } else if (type === 'resonance') {
+        // Deliberate instability trap: Low load impedance, large bus inductance, zero damping
+        state.cplPower = 7600;
+        state.lBus = 85e-6;
+        state.cBus = 90e-6;
+        state.activeDampGain = 0.0;
+        state.autoDampingEnabled = false;
+
+        sliderPower.value = 7600;
+        sliderInductance.value = 85;
+        sliderCap.value = 90;
+        sliderDamp.value = 0.0;
+        autoDampToggle.checked = false;
+
+        document.getElementById('sliderValPower').innerText = '7.60 kW';
+        document.getElementById('sliderValInductance').innerText = '85 µH';
+        document.getElementById('sliderValCap').innerText = '90 µF';
+        document.getElementById('sliderValDamp').innerText = '0.00 Ω Eq';
+      } else if (type === 'cryoPulse') {
+        // High disturbance with autonomous recovery enabled
+        state.cplPower = 5800;
+        state.lBus = 60e-6;
+        state.cBus = 160e-6;
+        state.activeDampGain = 0.15;
+        state.autoDampingEnabled = true;
+
+        sliderPower.value = 5800;
+        sliderInductance.value = 60;
+        sliderCap.value = 160;
+        sliderDamp.value = 0.15;
+        autoDampToggle.checked = true;
+
+        document.getElementById('sliderValPower').innerText = '5.80 kW';
+        document.getElementById('sliderValInductance').innerText = '60 µH';
+        document.getElementById('sliderValCap').innerText = '160 µF';
+        document.getElementById('sliderValDamp').innerText = '0.15 Ω Eq';
+      }
+      injectChirpPulse();
+    }
+
+    // Initialize Lucide icons on boot
+    window.addEventListener('load', () => {
+      lucide.createIcons();
+    });
+  </script>
+</body>
+</html>
